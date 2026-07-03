@@ -1,0 +1,5 @@
+[tool.pyrefly]
+enable-fallback-search-path = true
+search-paths = [
+    ".venv/lib/python3.10/site-packages"
+]
