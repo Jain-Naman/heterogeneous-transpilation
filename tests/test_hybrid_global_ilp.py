@@ -46,6 +46,7 @@ def _run_ilp(
     circuit: QuantumCircuit,
     coupling_map: CouplingMap | None = None,
     layout: Layout | None = None,
+    init_modality_sc: bool = False,
     **cost_kwargs,
 ) -> QuantumCircuit:
     """Run HybridGlobalStaticILP on *circuit* and return the result."""
@@ -60,7 +61,8 @@ def _run_ilp(
         initial_layout=layout,
         **cost_kwargs,
     )
-    routed_dag = router.run(dag)[0]
+    res = router.run(dag, init_modality_sc=init_modality_sc)
+    routed_dag = res[0] if isinstance(res, tuple) else res
     return dag_to_circuit(routed_dag)
 
 

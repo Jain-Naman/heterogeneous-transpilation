@@ -108,7 +108,7 @@ class HybridGlobalStaticILP(TransformationPass):
     # Public entry-point
     # ------------------------------------------------------------------
 
-    def run(self, dag: DAGCircuit, return_modality = False) -> tuple[DAGCircuit, dict[Qubit, str]]:
+    def run(self, dag: DAGCircuit, init_modality_sc = True) -> DAGCircuit:
         """Transform *dag* using the globally optimal modality assignment.
 
         Parameters
@@ -167,19 +167,14 @@ class HybridGlobalStaticILP(TransformationPass):
             return new_dag
 
         # --- Solve the MILP ---
-        x_sol = self._solve_milp(N, T, gate_info)
-        
-        print(x_sol)
-        
+        x_sol = self._solve_milp(N, T, gate_info, init_modality_sc)
+                
         # --- Reconstruct DAG from the optimal solution ---
         out =  self._reconstruct_dag(
             new_dag, x_sol, N, T,
             qubit_list, qubit_to_idx,
             layers_data, logical_to_physical_init,
         )
-
-        if return_modality:
-            return out
 
         return out
 
@@ -192,6 +187,7 @@ class HybridGlobalStaticILP(TransformationPass):
         N: int,
         T: int,
         gate_info: list[tuple[int, int, int, int]],
+        init_modality_sc = True
     ) -> np.ndarray:
         """Build and solve the modality-assignment MILP.
 
@@ -277,14 +273,16 @@ class HybridGlobalStaticILP(TransformationPass):
         integrality = np.zeros(num_vars)
         integrality[:num_x] = 1  # x variables are integer (binary)
 
-        # Free initialization
-        # bounds = Bounds(lb=0, ub=1)
-
-        # Force initalization to SC
-        var_lb = np.zeros(num_vars)
-        for i in range(N):
-            var_lb[i * T] = 1.0
-        bounds = Bounds(lb=var_lb, ub=1)
+        
+        if init_modality_sc:
+            # Force initalization to SC
+            var_lb = np.zeros(num_vars)
+            for i in range(N):
+                var_lb[i * T] = 1.0
+            bounds = Bounds(lb=var_lb, ub=1)
+        else:
+            # Free initialization
+            bounds = Bounds(lb=0, ub=1)
 
         # --- Solve ---
         constraints = LinearConstraint(A.tocsc(), lb, ub)
@@ -318,7 +316,7 @@ class HybridGlobalStaticILP(TransformationPass):
         qubit_to_idx: dict[Qubit, int],
         layers_data: list[list[tuple]],
         logical_to_physical_init: dict[Qubit, int],
-    ) -> tuple[DAGCircuit, dict[Qubit, str]]:
+    ) -> DAGCircuit:
         """Walk the layer schedule and emit gates into *new_dag*.
 
         For each layer, modality transitions are applied first (inserting
@@ -353,8 +351,8 @@ class HybridGlobalStaticILP(TransformationPass):
                 for i in range(N):
                     if x_sol[i, t - 1] == 1 and x_sol[i, t] == 0:
                         q = qubit_list[i]
-                        new_dag.apply_operation_back(TRANSDUCT, [q], [])
                         phys = logical_to_physical[q]
+                        new_dag.apply_operation_back(TRANSDUCT, [new_dag.qubits[phys]], [])
                         physical_to_logical[phys] = None
                         modality_state[q] = "NA"
 
@@ -373,7 +371,7 @@ class HybridGlobalStaticILP(TransformationPass):
                             logical_to_physical_init, already_assigned,
                         )
                         already_assigned[q] = target
-                        new_dag.apply_operation_back(TRANSDUCT, [q], [])
+                        new_dag.apply_operation_back(TRANSDUCT, [new_dag.qubits[logical_to_physical[q]]], [])
                         logical_to_physical[q] = target
                         physical_to_logical[target] = q
                         modality_state[q] = "SC"
@@ -410,9 +408,9 @@ class HybridGlobalStaticILP(TransformationPass):
                         )
 
                 # (NA gates need no routing — all-to-all connectivity.)
-                new_dag.apply_operation_back(op, qargs, cargs)
+                new_dag.apply_operation_back(op, [new_dag.qubits[logical_to_physical[q]] for q in qargs], cargs)
 
-        return new_dag, modality_state
+        return new_dag
 
     # ------------------------------------------------------------------
     # SC position assignment for NA → SC transitions
@@ -524,7 +522,7 @@ class HybridGlobalStaticILP(TransformationPass):
             else:
                 # Full SWAP: both nodes occupied.
                 dag.apply_operation_back(
-                    SwapGate(), [qubit_on_a, qubit_on_b], [],
+                    SwapGate(), [dag.qubits[node_a], dag.qubits[node_b]], [],
                 )
                 logical_to_physical[qubit_on_a] = node_b
                 logical_to_physical[qubit_on_b] = node_a
