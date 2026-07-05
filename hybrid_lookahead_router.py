@@ -138,7 +138,7 @@ class HybridLookaheadRouter(TransformationPass):
             # Step 1 – single-qubit gates: pass through unchanged.
             if num_qubits == 1:
                 new_dag.apply_operation_back(
-                    node.op, node.qargs, node.cargs,
+                    node.op, [new_dag.qubits[logical_to_physical[q]] for q in node.qargs], node.cargs,
                 )
                 continue
 
@@ -173,7 +173,7 @@ class HybridLookaheadRouter(TransformationPass):
 
             # Apply the original gate.
             new_dag.apply_operation_back(
-                node.op, node.qargs, node.cargs,
+                node.op, [new_dag.qubits[logical_to_physical[q]] for q in node.qargs], node.cargs,
             )
 
         return new_dag
@@ -439,10 +439,10 @@ class HybridLookaheadRouter(TransformationPass):
         """
         for q in (qi, qj):
             if modality_state[q] == "SC":
-                # Inject a TRANSDUCT marker.
-                dag.apply_operation_back(TRANSDUCT, [q], [])
-                # Vacate the SC node.
                 phys = logical_to_physical[q]
+                # Inject a TRANSDUCT marker.
+                dag.apply_operation_back(TRANSDUCT, [dag.qubits[phys]], [])
+                # Vacate the SC node.
                 physical_to_logical[phys] = None
                 modality_state[q] = "NA"
 
@@ -552,7 +552,7 @@ class HybridLookaheadRouter(TransformationPass):
             else:
                 # Full SWAP: both nodes are occupied.
                 dag.apply_operation_back(
-                    SwapGate(), [qubit_on_a, qubit_on_b], [],
+                    SwapGate(), [dag.qubits[node_a], dag.qubits[node_b]], [],
                 )
                 # Update mappings for both qubits.
                 logical_to_physical[qubit_on_a] = node_b
