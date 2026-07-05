@@ -379,7 +379,7 @@ class HybridGlobalStaticILP(TransformationPass):
             # ── Process gates in this layer ──
             for op, qargs, cargs in layers_data[t]:
                 if op.num_qubits == 1:
-                    new_dag.apply_operation_back(op, qargs, cargs)
+                    new_dag.apply_operation_back(op, [new_dag.qubits[logical_to_physical[q]] for q in qargs], cargs)
                     continue
 
                 assert op.num_qubits == 2, (
