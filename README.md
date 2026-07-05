@@ -69,3 +69,12 @@ Generate color-coded circuit diagrams to visually inspect the routing decisions 
 python visualize_circuits.py --output-dir ./visualizations --regime A
 ```
 (Supported regimes correspond to different penalty parameters: `A`, `B`, `C`, or `D`).
+
+### Running Unit Tests
+
+The repository contains a comprehensive suite of unit tests verifying the routing logic for the Greedy, Lookahead, and Global ILP routers. You can run these tests using `pytest`:
+
+```bash
+pip install pytest
+pytest tests/
+```
